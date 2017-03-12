@@ -39,6 +39,7 @@ import com.google.common.collect.testing.google.ListGenerators.ImmutableListOfGe
 import com.google.common.collect.testing.google.ListGenerators.ImmutableListTailSubListGenerator;
 import com.google.common.collect.testing.google.ListGenerators.UnhashableElementsImmutableListGenerator;
 import com.google.common.collect.testing.testers.ListHashCodeTester;
+import com.google.common.testing.CollectorTester;
 import com.google.common.testing.NullPointerTester;
 import com.google.common.testing.SerializableTester;
 import java.lang.reflect.InvocationHandler;
@@ -425,6 +426,38 @@ public class ImmutableListTest extends TestCase {
       assertEquals(ImmutableList.of("a"), result);
       assertEquals(1, result.size());
     }
+
+    public void testSortedCopyOf() {
+      Collection<String> c = MinimalCollection.of("a", "b", "A", "c");
+      List<String> list = ImmutableList.sortedCopyOf(String.CASE_INSENSITIVE_ORDER, c);
+      assertEquals(asList("a", "A", "b", "c"), list);
+    }
+
+    public void testSortedCopyOf_empty() {
+      Collection<String> c = MinimalCollection.of();
+      List<String> list = ImmutableList.sortedCopyOf(String.CASE_INSENSITIVE_ORDER, c);
+      assertEquals(asList(), list);
+    }
+
+    public void testSortedCopyOf_singleton() {
+      Collection<String> c = MinimalCollection.of("a");
+      List<String> list = ImmutableList.sortedCopyOf(String.CASE_INSENSITIVE_ORDER, c);
+      assertEquals(asList("a"), list);
+    }
+
+    public void testSortedCopyOf_containsNull() {
+      Collection<String> c = MinimalCollection.of("a", "b", "A", null, "c");
+      try {
+        ImmutableList.sortedCopyOf(String.CASE_INSENSITIVE_ORDER, c);
+        fail("Expected NPE");
+      } catch (NullPointerException expected) {
+      }
+    }
+
+    public void testToImmutableList() {
+      CollectorTester.of(ImmutableList.<String>toImmutableList())
+          .expectCollects(ImmutableList.of("a", "b", "c", "d"), "a", "b", "c", "d");
+    }
   }
 
   @GwtIncompatible // reflection
@@ -448,10 +481,6 @@ public class ImmutableListTest extends TestCase {
 
       assertTrue(concurrentlyMutatedList.getAllStates()
           .contains(copyOfIterable));
-
-      // Check that we didn't end up with a RegularImmutableList of size 1.
-      assertEquals(copyOfIterable.size() == 1,
-          copyOfIterable instanceof SingletonImmutableList);
     }
 
     private static void runConcurrentlyMutatedTest(WrapWithIterable wrap) {

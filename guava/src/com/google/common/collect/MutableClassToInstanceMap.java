@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.Spliterator;
 
 /**
  * A mutable class-to-instance map backed by an arbitrary user-provided map. See also {@link
@@ -60,7 +61,7 @@ public final class MutableClassToInstanceMap<B> extends ForwardingMap<Class<? ex
   public static <B> MutableClassToInstanceMap<B> create(Map<Class<? extends B>, B> backingMap) {
     return new MutableClassToInstanceMap<B>(backingMap);
   }
-  
+
   private final Map<Class<? extends B>, B> delegate;
 
   private MutableClassToInstanceMap(Map<Class<? extends B>, B> delegate) {
@@ -72,7 +73,11 @@ public final class MutableClassToInstanceMap<B> extends ForwardingMap<Class<? ex
     return delegate;
   }
 
-  static <B> Entry<Class<? extends B>, B> checkedEntry(final Entry<Class<? extends B>, B> entry) {
+  /**
+   * Wraps the {@code setValue} implementation of an {@code Entry} to enforce the class constraint.
+   */
+  private static <B> Entry<Class<? extends B>, B> checkedEntry(
+      final Entry<Class<? extends B>, B> entry) {
     return new ForwardingMapEntry<Class<? extends B>, B>() {
       @Override
       protected Entry<Class<? extends B>, B> delegate() {
@@ -93,6 +98,12 @@ public final class MutableClassToInstanceMap<B> extends ForwardingMap<Class<? ex
       @Override
       protected Set<Entry<Class<? extends B>, B>> delegate() {
         return MutableClassToInstanceMap.this.delegate().entrySet();
+      }
+
+      @Override
+      public Spliterator<Entry<Class<? extends B>, B>> spliterator() {
+        return CollectSpliterators.map(
+            delegate().spliterator(), MutableClassToInstanceMap::checkedEntry);
       }
 
       @Override
@@ -127,7 +138,7 @@ public final class MutableClassToInstanceMap<B> extends ForwardingMap<Class<? ex
   @Override
   public void putAll(Map<? extends Class<? extends B>, ? extends B> map) {
     Map<Class<? extends B>, B> copy = new LinkedHashMap<Class<? extends B>, B>(map);
-    for (Entry<? extends Class<? extends B>, ? extends B> entry : copy.entrySet()) {
+    for (Entry<? extends Class<? extends B>, B> entry : copy.entrySet()) {
       cast(entry.getKey(), entry.getValue());
     }
     super.putAll(copy);

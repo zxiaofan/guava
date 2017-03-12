@@ -33,8 +33,6 @@ import com.google.common.base.Objects;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMultiset;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
@@ -107,11 +105,16 @@ public final class MediaType {
   private static final Map<MediaType, MediaType> KNOWN_TYPES = Maps.newHashMap();
 
   private static MediaType createConstant(String type, String subtype) {
-    return addKnownType(new MediaType(type, subtype, ImmutableListMultimap.<String, String>of()));
+    MediaType mediaType =
+        addKnownType(new MediaType(type, subtype, ImmutableListMultimap.<String, String>of()));
+    mediaType.parsedCharset = Optional.absent();
+    return mediaType;
   }
 
   private static MediaType createConstantUtf8(String type, String subtype) {
-    return addKnownType(new MediaType(type, subtype, UTF_8_CONSTANT_PARAMETERS));
+    MediaType mediaType = addKnownType(new MediaType(type, subtype, UTF_8_CONSTANT_PARAMETERS));
+    mediaType.parsedCharset = Optional.of(UTF_8);
+    return mediaType;
   }
 
   private static MediaType addKnownType(MediaType mediaType) {
@@ -481,13 +484,13 @@ public final class MediaType {
       createConstant(APPLICATION_TYPE, "x-shockwave-flash");
   public static final MediaType SKETCHUP = createConstant(APPLICATION_TYPE, "vnd.sketchup.skp");
   /**
-   * As described in <a href="http://www.ietf.org/rfc/rfc3902.txt">RFC 3902<a/>, this constant
+   * As described in <a href="http://www.ietf.org/rfc/rfc3902.txt">RFC 3902</a>, this constant
    * ({@code application/soap+xml}) is used to identify SOAP 1.2 message envelopes that have been
    * serialized with XML 1.0.
    *
-   * <p>For SOAP 1.1 messages, see {@code XML_UTF_8} per
-   * <a href="http://www.w3.org/TR/2000/NOTE-SOAP-20000508/">W3C Note on Simple Object Access
-   * Protocol (SOAP) 1.1</a>
+   * <p>For SOAP 1.1 messages, see {@code XML_UTF_8} per <a
+   * href="http://www.w3.org/TR/2000/NOTE-SOAP-20000508/">W3C Note on Simple Object Access Protocol
+   * (SOAP) 1.1</a>
    *
    * @since 20.0
    */
@@ -528,6 +531,8 @@ public final class MediaType {
 
   @LazyInit
   private int hashCode;
+
+  @LazyInit private Optional<Charset> parsedCharset;
 
   private MediaType(String type, String subtype, ImmutableListMultimap<String, String> parameters) {
     this.type = type;
@@ -570,15 +575,23 @@ public final class MediaType {
    *     in this instance of the Java virtual machine
    */
   public Optional<Charset> charset() {
-    ImmutableSet<String> charsetValues = ImmutableSet.copyOf(parameters.get(CHARSET_ATTRIBUTE));
-    switch (charsetValues.size()) {
-      case 0:
-        return Optional.absent();
-      case 1:
-        return Optional.of(Charset.forName(Iterables.getOnlyElement(charsetValues)));
-      default:
-        throw new IllegalStateException("Multiple charset values defined: " + charsetValues);
+    // racy single-check idiom, this is safe because Optional is immutable.
+    Optional<Charset> local = parsedCharset;
+    if (local == null) {
+      String value = null;
+      local = Optional.absent();
+      for (String currentValue : parameters.get(CHARSET_ATTRIBUTE)) {
+        if (value == null) {
+          value = currentValue;
+          local = Optional.of(Charset.forName(value));
+        } else if (!value.equals(currentValue)) {
+          throw new IllegalStateException(
+              "Multiple charset values defined: " + value + ", " + currentValue);
+        }
+      }
+      parsedCharset = local;
     }
+    return local;
   }
 
   /**
@@ -619,6 +632,10 @@ public final class MediaType {
     }
     builder.put(normalizedAttribute, normalizeParameterValue(normalizedAttribute, value));
     MediaType mediaType = new MediaType(type, subtype, builder.build());
+    // if the attribute isn't charset, we can just inherit the current parsedCharset
+    if (!normalizedAttribute.equals(CHARSET_ATTRIBUTE)) {
+      mediaType.parsedCharset = this.parsedCharset;
+    }
     // Return one of the constants if the media type is a known type.
     return MoreObjects.firstNonNull(KNOWN_TYPES.get(mediaType), mediaType);
   }
@@ -634,7 +651,10 @@ public final class MediaType {
    */
   public MediaType withCharset(Charset charset) {
     checkNotNull(charset);
-    return withParameter(CHARSET_ATTRIBUTE, charset.name());
+    MediaType withCharset = withParameter(CHARSET_ATTRIBUTE, charset.name());
+    // precache the charset so we don't need to parse it
+    withCharset.parsedCharset = Optional.of(charset);
+    return withCharset;
   }
 
   /** Returns true if either the type or subtype is the wildcard. */
@@ -681,7 +701,9 @@ public final class MediaType {
    *     type, but not the subtype.
    */
   public static MediaType create(String type, String subtype) {
-    return create(type, subtype, ImmutableListMultimap.<String, String>of());
+    MediaType mediaType = create(type, subtype, ImmutableListMultimap.<String, String>of());
+    mediaType.parsedCharset = Optional.absent();
+    return mediaType;
   }
 
   /**

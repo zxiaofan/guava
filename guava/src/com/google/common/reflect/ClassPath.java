@@ -14,6 +14,7 @@
 
 package com.google.common.reflect;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.Beta;
@@ -34,10 +35,12 @@ import com.google.common.io.Resources;
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.Charset;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -54,6 +57,10 @@ import javax.annotation.Nullable;
  *
  * <p><b>Warning:</b> Currently only {@link URLClassLoader} and only {@code file://} urls are
  * supported.
+ *
+ * <p>In the case of directory classloaders, symlinks are supported but cycles are not traversed.
+ * This guarantees discovery of each <em>unique</em> loadable resource. However, not all possible
+ * aliases for resources on cyclic paths will be listed.
  *
  * @author Ben Yu
  * @since 14.0
@@ -410,7 +417,7 @@ public final class ClassPath {
             continue;
           }
           if (url.getProtocol().equals("file")) {
-            builder.add(new File(url.getFile()));
+            builder.add(toFile(url));
           }
         }
       }
@@ -429,7 +436,7 @@ public final class ClassPath {
         URLClassLoader urlClassLoader = (URLClassLoader) classloader;
         for (URL entry : urlClassLoader.getURLs()) {
           if (entry.getProtocol().equals("file")) {
-            File file = new File(entry.getFile());
+            File file = toFile(entry);
             if (!entries.containsKey(file)) {
               entries.put(file, classloader);
             }
@@ -478,10 +485,25 @@ public final class ClassPath {
 
     @Override
     protected void scanDirectory(ClassLoader classloader, File directory) throws IOException {
-      scanDirectory(directory, classloader, "");
+      Set<File> currentPath = new HashSet<File>();
+      currentPath.add(directory.getCanonicalFile());
+      scanDirectory(directory, classloader, "", currentPath);
     }
 
-    private void scanDirectory(File directory, ClassLoader classloader, String packagePrefix)
+    /**
+     * Recursively scan the given directory, adding resources for each file encountered. Symlinks
+     * which have already been traversed in the current tree path will be skipped to eliminate
+     * cycles; otherwise symlinks are traversed.
+     *
+     * @param directory the root of the directory to scan
+     * @param classloader the classloader that includes resources found in {@code directory}
+     * @param packagePrefix resource path prefix inside {@code classloader} for any files found
+     *     under {@code directory}
+     * @param currentPath canonical files already visited in the current directory tree path, for
+     *     cycle elimination
+     */
+    private void scanDirectory(
+        File directory, ClassLoader classloader, String packagePrefix, Set<File> currentPath)
         throws IOException {
       File[] files = directory.listFiles();
       if (files == null) {
@@ -492,7 +514,11 @@ public final class ClassPath {
       for (File f : files) {
         String name = f.getName();
         if (f.isDirectory()) {
-          scanDirectory(f, classloader, packagePrefix + name + "/");
+          File deref = f.getCanonicalFile();
+          if (currentPath.add(deref)) {
+            scanDirectory(deref, classloader, packagePrefix + name + "/", currentPath);
+            currentPath.remove(deref);
+          }
         } else {
           String resourceName = packagePrefix + name;
           if (!resourceName.equals(JarFile.MANIFEST_NAME)) {
@@ -507,5 +533,16 @@ public final class ClassPath {
   static String getClassName(String filename) {
     int classNameEnd = filename.length() - CLASS_FILE_NAME_EXTENSION.length();
     return filename.substring(0, classNameEnd).replace('/', '.');
+  }
+
+  // TODO(benyu): Try java.nio.file.Paths#get() when Guava drops JDK 6 support.
+  @VisibleForTesting
+  static File toFile(URL url) {
+    checkArgument(url.getProtocol().equals("file"));
+    try {
+      return new File(url.toURI());  // Accepts escaped characters like %20.
+    } catch (URISyntaxException e) {  // URL.toURI() doesn't escape chars.
+      return new File(url.getPath());  // Accepts non-escaped chars like space.
+    }
   }
 }

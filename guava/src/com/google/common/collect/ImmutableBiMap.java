@@ -22,6 +22,9 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 /**
  * A {@link BiMap} whose contents will never change, with many other important properties detailed
@@ -31,7 +34,28 @@ import java.util.Map;
  * @since 2.0
  */
 @GwtCompatible(serializable = true, emulated = true)
-public abstract class ImmutableBiMap<K, V> extends ImmutableMap<K, V> implements BiMap<K, V> {
+public abstract class ImmutableBiMap<K, V> extends ImmutableBiMapFauxverideShim<K, V>
+    implements BiMap<K, V> {
+
+  /**
+   * Returns a {@link Collector} that accumulates elements into an {@code ImmutableBiMap} whose
+   * keys and values are the result of applying the provided mapping functions to the input
+   * elements. Entries appear in the result {@code ImmutableBiMap} in encounter order.
+   *
+   * <p>If the mapped keys or values contain duplicates
+   * (according to {@link Object#equals(Object)}, an {@code IllegalArgumentException} is thrown
+   * when the collection operation is performed. (This differs from the {@code Collector} returned
+   * by {@link Collectors#toMap(Function, Function)}, which throws an
+   * {@code IllegalStateException}.)
+   *
+   * @since 21.0
+   */
+  @Beta
+  public static <T, K, V> Collector<T, ?, ImmutableBiMap<K, V>> toImmutableBiMap(
+      Function<? super T, ? extends K> keyFunction,
+      Function<? super T, ? extends V> valueFunction) {
+    return CollectCollectors.toImmutableBiMap(keyFunction, valueFunction);
+  }
 
   /**
    * Returns the empty bimap.
@@ -202,6 +226,13 @@ public abstract class ImmutableBiMap<K, V> extends ImmutableMap<K, V> implements
       return this;
     }
 
+    @Override
+    @CanIgnoreReturnValue
+    Builder<K, V> combine(ImmutableMap.Builder<K, V> builder) {
+      super.combine(builder);
+      return this;
+    }
+
     /**
      * Returns a newly-created immutable bimap.
      *
@@ -224,7 +255,7 @@ public abstract class ImmutableBiMap<K, V> extends ImmutableMap<K, V> implements
            */
           if (valueComparator != null) {
             if (entriesUsed) {
-              entries = ObjectArrays.arraysCopyOf(entries, size);
+              entries = Arrays.copyOf(entries, size);
             }
             Arrays.sort(
                 entries,
@@ -310,6 +341,11 @@ public abstract class ImmutableBiMap<K, V> extends ImmutableMap<K, V> implements
   @Override
   public ImmutableSet<V> values() {
     return inverse().keySet();
+  }
+
+  @Override
+  final ImmutableSet<V> createValues() {
+    throw new AssertionError("should never be called");
   }
 
   /**

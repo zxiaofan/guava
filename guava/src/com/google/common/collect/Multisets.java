@@ -37,6 +37,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.stream.Collector;
 import javax.annotation.Nullable;
 
 /**
@@ -55,6 +57,36 @@ import javax.annotation.Nullable;
 @GwtCompatible
 public final class Multisets {
   private Multisets() {}
+
+  /**
+   * Returns a {@code Collector} that accumulates elements into a multiset created via the specified
+   * {@code Supplier}, whose elements are the result of applying {@code elementFunction} to the
+   * inputs, with counts equal to the result of applying {@code countFunction} to the inputs.
+   * Elements are added in encounter order.
+   *
+   * <p>If the mapped elements contain duplicates (according to {@link Object#equals}), the element
+   * will be added more than once, with the count summed over all appearances of the element.
+   *
+   * <p>Note that {@code stream.collect(toMultiset(function, e -> 1, supplier))} is equivalent to
+   * {@code stream.map(function).collect(Collectors.toCollection(supplier))}.
+   *
+   * @since 22.0
+   */
+  public static <T, E, M extends Multiset<E>> Collector<T, ?, M> toMultiset(
+      java.util.function.Function<T, E> elementFunction,
+      java.util.function.ToIntFunction<T> countFunction,
+      java.util.function.Supplier<M> multisetSupplier) {
+    checkNotNull(elementFunction);
+    checkNotNull(countFunction);
+    checkNotNull(multisetSupplier);
+    return Collector.of(
+        multisetSupplier,
+        (ms, t) -> ms.add(elementFunction.apply(t), countFunction.applyAsInt(t)),
+        (ms1, ms2) -> {
+          ms1.addAll(ms2);
+          return ms1;
+        });
+  }
 
   /**
    * Returns an unmodifiable view of the specified multiset. Query operations on
@@ -1084,6 +1116,17 @@ public final class Multisets {
       totalCount--;
       canRemove = false;
     }
+  }
+
+  static <E> Spliterator<E> spliteratorImpl(Multiset<E> multiset) {
+    Spliterator<Entry<E>> entrySpliterator = multiset.entrySet().spliterator();
+    return CollectSpliterators.flatMap(
+        entrySpliterator,
+        entry -> Collections.nCopies(entry.getCount(), entry.getElement()).spliterator(),
+        Spliterator.SIZED
+            | (entrySpliterator.characteristics()
+                & (Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.IMMUTABLE)),
+        multiset.size());
   }
 
   /**

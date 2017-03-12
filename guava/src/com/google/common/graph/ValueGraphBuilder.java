@@ -34,13 +34,13 @@ import com.google.common.base.Optional;
  *
  * <p>Example of use:
  *
- * <pre><code>
+ * <pre>{@code
  * MutableValueGraph<String, Double> graph =
  *     ValueGraphBuilder.undirected().allowsSelfLoops(true).build();
  * graph.putEdgeValue("San Francisco", "San Francisco", 0.0);
  * graph.putEdgeValue("San Jose", "San Jose", 0.0);
  * graph.putEdgeValue("San Francisco", "San Jose", 48.4);
- * </code></pre>
+ * }</pre>
  *
  * @author James Sexton
  * @author Joshua O'Madadhain
@@ -68,11 +68,11 @@ public final class ValueGraphBuilder<N, V> extends AbstractGraphBuilder<N> {
    * Returns a {@link ValueGraphBuilder} initialized with all properties queryable from {@code
    * graph}.
    *
-   * <p>The "queryable" properties are those that are exposed through the {@link Graph} interface,
-   * such as {@link Graph#isDirected()}. Other properties, such as {@link #expectedNodeCount(int)},
-   * are not set in the new builder.
+   * <p>The "queryable" properties are those that are exposed through the {@link ValueGraph}
+   * interface, such as {@link ValueGraph#isDirected()}. Other properties, such as {@link
+   * #expectedNodeCount(int)}, are not set in the new builder.
    */
-  public static <N> ValueGraphBuilder<N, Object> from(Graph<N> graph) {
+  public static <N> ValueGraphBuilder<N, Object> from(ValueGraph<N, ?> graph) {
     return new ValueGraphBuilder<N, Object>(graph.isDirected())
         .allowsSelfLoops(graph.allowsSelfLoops())
         .nodeOrder(graph.nodeOrder());

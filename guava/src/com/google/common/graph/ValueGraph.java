@@ -17,11 +17,14 @@
 package com.google.common.graph;
 
 import com.google.common.annotations.Beta;
+import com.google.errorprone.annotations.CompatibleWith;
+import java.util.Set;
 import javax.annotation.Nullable;
 
 /**
- * An interface for <a href="https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)">graph</a>-
- * structured data, whose edges have associated non-unique values.
+ * An interface for <a
+ * href="https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)">graph</a>-structured data,
+ * whose edges have associated non-unique values.
  *
  * <p>A graph is composed of a set of nodes and a set of edges connecting pairs of nodes.
  *
@@ -57,9 +60,9 @@ import javax.annotation.Nullable;
  * an instance of one of the built-in implementations of {@code ValueGraph}, use the {@link
  * ValueGraphBuilder} class:
  *
- * <pre><code>
+ * <pre>{@code
  *   MutableValueGraph<Integer, Double> graph = ValueGraphBuilder.directed().build();
- * </code></pre>
+ * }</pre>
  *
  * <p>{@link ValueGraphBuilder#build()} returns an instance of {@link MutableValueGraph}, which is a
  * subtype of {@code ValueGraph} that provides methods for adding and removing nodes and edges. If
@@ -70,9 +73,9 @@ import javax.annotation.Nullable;
  * <p>You can create an immutable copy of an existing {@code ValueGraph} using {@link
  * ImmutableValueGraph#copyOf(ValueGraph)}:
  *
- * <pre><code>
+ * <pre>{@code
  *   ImmutableValueGraph<Integer, Double> immutableGraph = ImmutableValueGraph.copyOf(graph);
- * </code></pre>
+ * }</pre>
  *
  * <p>Instances of {@link ImmutableValueGraph} do not implement {@link MutableValueGraph}
  * (obviously!) and are contractually guaranteed to be unmodifiable and thread-safe.
@@ -103,8 +106,74 @@ import javax.annotation.Nullable;
  * @param <V> Value parameter type
  * @since 20.0
  */
+// TODO(b/35456940): Update the documentation to reflect the new interfaces
 @Beta
-public interface ValueGraph<N, V> extends Graph<N> {
+public interface ValueGraph<N, V> extends BaseGraph<N> {
+  //
+  // ValueGraph-level accessors
+  //
+
+  /** {@inheritDoc} */
+  @Override
+  Set<N> nodes();
+
+  /** {@inheritDoc} */
+  @Override
+  Set<EndpointPair<N>> edges();
+
+  /**
+   * Returns a live view of this graph as a {@link Graph}. The resulting {@link Graph} will have an
+   * edge connecting node A to node B if this {@link ValueGraph} has an edge connecting A to B.
+   */
+  Graph<N> asGraph();
+
+  //
+  // ValueGraph properties
+  //
+
+  /** {@inheritDoc} */
+  @Override
+  boolean isDirected();
+
+  /** {@inheritDoc} */
+  @Override
+  boolean allowsSelfLoops();
+
+  /** {@inheritDoc} */
+  @Override
+  ElementOrder<N> nodeOrder();
+
+  //
+  // Element-level accessors
+  //
+
+  /** {@inheritDoc} */
+  @Override
+  Set<N> adjacentNodes(Object node);
+
+  /** {@inheritDoc} */
+  @Override
+  Set<N> predecessors(Object node);
+
+  /** {@inheritDoc} */
+  @Override
+  Set<N> successors(Object node);
+
+  /** {@inheritDoc} */
+  @Override
+  int degree(Object node);
+
+  /** {@inheritDoc} */
+  @Override
+  int inDegree(Object node);
+
+  /** {@inheritDoc} */
+  @Override
+  int outDegree(Object node);
+
+  /** {@inheritDoc} */
+  @Override
+  boolean hasEdge(Object nodeU, Object nodeV);
 
   /**
    * If there is an edge connecting {@code nodeU} to {@code nodeV}, returns the non-null value
@@ -114,7 +183,7 @@ public interface ValueGraph<N, V> extends Graph<N> {
    *
    * @throws IllegalArgumentException if there is no edge connecting {@code nodeU} to {@code nodeV}.
    */
-  V edgeValue(Object nodeU, Object nodeV);
+  V edgeValue(@CompatibleWith("N") Object nodeU, @CompatibleWith("N") Object nodeV);
 
   /**
    * If there is an edge connecting {@code nodeU} to {@code nodeV}, returns the non-null value
@@ -123,27 +192,42 @@ public interface ValueGraph<N, V> extends Graph<N> {
    * <p>In an undirected graph, this is equal to {@code edgeValueOrDefault(nodeV, nodeU,
    * defaultValue)}.
    */
-  V edgeValueOrDefault(Object nodeU, Object nodeV, @Nullable V defaultValue);
+  V edgeValueOrDefault(@CompatibleWith("N") Object nodeU, @CompatibleWith("N") Object nodeV,
+      @Nullable V defaultValue);
 
   //
   // ValueGraph identity
   //
 
   /**
-   * For the default {@link ValueGraph} implementations, returns true if {@code this == object}
-   * (reference equality). External implementations are free to define this method as they see fit,
-   * as long as they satisfy the {@link Object#equals(Object)} contract.
+   * Returns {@code true} iff {@code object} is a {@link ValueGraph} that has the same elements and
+   * the same structural relationships as those in this graph.
    *
-   * <p>To compare two {@link ValueGraph}s based on their contents rather than their references, see
-   * {@link Graphs#equivalent(ValueGraph, ValueGraph)}.
+   * <p>Thus, two value graphs A and B are equal if <b>all</b> of the following are true:
+   *
+   * <ul>
+   * <li>A and B have equal {@link #isDirected() directedness}.
+   * <li>A and B have equal {@link #nodes() node sets}.
+   * <li>A and B have equal {@link #edges() edge sets}.
+   * <li>Every edge in A and B are associated with equal {@link #edgeValue(Object, Object) values}.
+   * </ul>
+   *
+   * <p>Graph properties besides {@link #isDirected() directedness} do <b>not</b> affect equality.
+   * For example, two graphs may be considered equal even if one allows self-loops and the other
+   * doesn't. Additionally, the order in which nodes or edges are added to the graph, and the order
+   * in which they are iterated over, are irrelevant.
+   *
+   * <p>A reference implementation of this is provided by {@link AbstractValueGraph#equals(Object)}.
    */
   @Override
   boolean equals(@Nullable Object object);
 
   /**
-   * For the default {@link ValueGraph} implementations, returns {@code
-   * System.identityHashCode(this)}. External implementations are free to define this method as they
-   * see fit, as long as they satisfy the {@link Object#hashCode()} contract.
+   * Returns the hash code for this graph. The hash code of a graph is defined as the hash code of a
+   * map from each of its {@link #edges() edges} to the associated {@link #edgeValue(Object, Object)
+   * edge value}.
+   *
+   * <p>A reference implementation of this is provided by {@link AbstractValueGraph#hashCode()}.
    */
   @Override
   int hashCode();

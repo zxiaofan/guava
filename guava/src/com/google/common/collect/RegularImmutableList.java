@@ -17,6 +17,8 @@
 package com.google.common.collect;
 
 import com.google.common.annotations.GwtCompatible;
+import java.util.Spliterator;
+import java.util.Spliterators;
 
 /**
  * Implementation of {@link ImmutableList} used for 0 or 2+ elements (not 1).
@@ -27,7 +29,7 @@ import com.google.common.annotations.GwtCompatible;
 @SuppressWarnings("serial") // uses writeReplace(), not default serialization
 class RegularImmutableList<E> extends ImmutableList<E> {
   static final ImmutableList<Object> EMPTY =
-      new RegularImmutableList<Object>(ObjectArrays.EMPTY_ARRAY);
+      new RegularImmutableList<Object>(new Object[0]);
 
   private final transient Object[] array;
 
@@ -64,6 +66,11 @@ class RegularImmutableList<E> extends ImmutableList<E> {
     // for performance
     // The fake cast to E is safe because the creation methods only allow E's
     return (UnmodifiableListIterator<E>) Iterators.forArray(array, 0, array.length, index);
+  }
+
+  @Override
+  public Spliterator<E> spliterator() {
+    return Spliterators.spliterator(array, SPLITERATOR_CHARACTERISTICS);
   }
 
   // TODO(lowasser): benchmark optimizations for equals() and see if they're worthwhile

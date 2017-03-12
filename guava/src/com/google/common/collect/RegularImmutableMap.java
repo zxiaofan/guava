@@ -16,6 +16,7 @@
 
 package com.google.common.collect;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndex;
 import static com.google.common.collect.CollectPreconditions.checkEntryNotNull;
 import static com.google.common.collect.ImmutableMapEntry.createEntryArray;
@@ -25,6 +26,7 @@ import com.google.common.annotations.GwtIncompatible;
 import com.google.common.collect.ImmutableMapEntry.NonTerminalImmutableMapEntry;
 import com.google.j2objc.annotations.Weak;
 import java.io.Serializable;
+import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 
 /**
@@ -36,7 +38,11 @@ import javax.annotation.Nullable;
  */
 @GwtCompatible(serializable = true, emulated = true)
 final class RegularImmutableMap<K, V> extends ImmutableMap<K, V> {
-
+  @SuppressWarnings("unchecked")
+  static final ImmutableMap<Object, Object> EMPTY =
+      new RegularImmutableMap<Object, Object>(
+          (Entry<Object, Object>[]) ImmutableMap.EMPTY_ENTRY_ARRAY, null, 0);
+  
   // entries in insertion order
   private final transient Entry<K, V>[] entries;
   // array of linked lists of entries
@@ -55,6 +61,9 @@ final class RegularImmutableMap<K, V> extends ImmutableMap<K, V> {
    */
   static <K, V> RegularImmutableMap<K, V> fromEntryArray(int n, Entry<K, V>[] entryArray) {
     checkPositionIndex(n, entryArray.length);
+    if (n == 0) {
+      return (RegularImmutableMap<K, V>) EMPTY;
+    }
     Entry<K, V>[] entries;
     if (n == entryArray.length) {
       entries = entryArray;
@@ -114,8 +123,8 @@ final class RegularImmutableMap<K, V> extends ImmutableMap<K, V> {
   }
 
   @Nullable
-  static <V> V get(@Nullable Object key, ImmutableMapEntry<?, V>[] keyTable, int mask) {
-    if (key == null) {
+  static <V> V get(@Nullable Object key, @Nullable ImmutableMapEntry<?, V>[] keyTable, int mask) {
+    if (key == null || keyTable == null) {
       return null;
     }
     int index = Hashing.smear(key.hashCode()) & mask;
@@ -135,6 +144,14 @@ final class RegularImmutableMap<K, V> extends ImmutableMap<K, V> {
       }
     }
     return null;
+  }
+
+  @Override
+  public void forEach(BiConsumer<? super K, ? super V> action) {
+    checkNotNull(action);
+    for (Entry<K, V> entry : entries) {
+      action.accept(entry.getKey(), entry.getValue());
+    }
   }
 
   @Override

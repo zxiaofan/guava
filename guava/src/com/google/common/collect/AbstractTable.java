@@ -15,6 +15,7 @@
 package com.google.common.collect;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.collect.Table.Cell;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.google.j2objc.annotations.WeakOuter;
 import java.util.AbstractCollection;
@@ -23,6 +24,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.Spliterator;
 import javax.annotation.Nullable;
 
 /**
@@ -118,6 +120,8 @@ abstract class AbstractTable<R, C, V> implements Table<R, C, V> {
   }
 
   abstract Iterator<Table.Cell<R, C, V>> cellIterator();
+  
+  abstract Spliterator<Table.Cell<R, C, V>> cellSpliterator();
 
   @WeakOuter
   class CellSet extends AbstractSet<Cell<R, C, V>> {
@@ -156,6 +160,11 @@ abstract class AbstractTable<R, C, V> implements Table<R, C, V> {
     }
 
     @Override
+    public Spliterator<Cell<R, C, V>> spliterator() {
+      return cellSpliterator();
+    }
+
+    @Override
     public int size() {
       return AbstractTable.this.size();
     }
@@ -181,12 +190,21 @@ abstract class AbstractTable<R, C, V> implements Table<R, C, V> {
       }
     };
   }
+  
+  Spliterator<V> valuesSpliterator() {
+    return CollectSpliterators.map(cellSpliterator(), Table.Cell::getValue);
+  }
 
   @WeakOuter
   class Values extends AbstractCollection<V> {
     @Override
     public Iterator<V> iterator() {
       return valuesIterator();
+    }
+    
+    @Override
+    public Spliterator<V> spliterator() {
+      return valuesSpliterator();
     }
 
     @Override

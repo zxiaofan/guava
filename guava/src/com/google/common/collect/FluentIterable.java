@@ -30,12 +30,11 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 /**
- * An expanded {@code Iterable} API, providing functionality similar to Java 8's powerful <a href=
- * "https://docs.oracle.com/javase/8/docs/api/java/util/stream/package-summary.html#package.description"
- * >streams library</a> in a slightly different way.
+ * A discouraged (but not deprecated) precursor to Java's superior {@link Stream} library.
  *
  * <p>The following types of methods are provided:
  *
@@ -56,9 +55,8 @@ import javax.annotation.Nullable;
  * <a name="streams"></a>
  * <h3>Comparison to streams</h3>
  *
- * <p>Starting with Java 8, the core Java class libraries provide a new "Streams" library (in {@code
- * java.util.stream}), which is similar to {@code FluentIterable} but generally more powerful. Key
- * differences include:</b>
+ * <p>{@link Stream} is similar to this class, but generally more powerful, and certainly more
+ * standard. Key differences include:
  *
  * <ul>
  * <li>A stream is <i>single-use</i>; it becomes invalid as soon as any "terminal operation" such as
@@ -73,8 +71,7 @@ import javax.annotation.Nullable;
  *     noted in the method descriptions below.
  * <li>Streams include primitive-specialized variants such as {@code IntStream}, the use of which is
  *     strongly recommended.
- * <li>Streams are standard Java, not requiring a third-party dependency (but do render your code
- *     incompatible with Java 7 and earlier).
+ * <li>Streams are standard Java, not requiring a third-party dependency.
  * </ul>
  *
  * <h3>Example</h3>
@@ -134,8 +131,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * Returns a fluent iterable that wraps {@code iterable}, or {@code iterable} itself if it is
    * already a {@code FluentIterable}.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@code iterable.stream()} if {@code iterable} is a
-   * {@link Collection}; {@code StreamSupport.stream(iterable.spliterator(), false)} otherwise.
+   * <p><b>{@code Stream} equivalent:</b> {@link Collection#stream} if {@code iterable} is a
+   * {@link Collection}; {@link Streams#stream(Iterable)} otherwise.
    */
   public static <E> FluentIterable<E> from(final Iterable<E> iterable) {
     return (iterable instanceof FluentIterable)
@@ -153,7 +150,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    *
    * <p>The returned iterable is an unmodifiable view of the input array.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@link Stream#of(T...)}.
+   * <p><b>{@code Stream} equivalent:</b> {@link java.util.stream.Stream#of(Object[])
+   * Stream.of(T...)}.
    *
    * @since 20.0 (since 18.0 as an overload of {@code of})
    */
@@ -243,8 +241,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * iterator supports it.
    *
    * <p><b>{@code Stream} equivalent:</b> to concatenate an arbitrary number of streams, use {@code
-   * Stream.of(stream1, stream2, ...).flatMap(s -> s)}. If the sources are iterables, after the next
-   * release of Guava you can use {@code Stream.of(iter1, iter2, ...).flatMap(Streams::stream)}.
+   * Stream.of(stream1, stream2, ...).flatMap(s -> s)}. If the sources are iterables, use {@code
+   * Stream.of(iter1, iter2, ...).flatMap(Streams::stream)}.
    *
    * @throws NullPointerException if any of the provided iterables is {@code null}
    * @since 20.0
@@ -283,7 +281,7 @@ public abstract class FluentIterable<E> implements Iterable<E> {
   /**
    * Returns a fluent iterable containing no elements.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@code Stream.empty()}.
+   * <p><b>{@code Stream} equivalent:</b> {@link Stream#empty}.
    *
    * @since 20.0
    */
@@ -297,7 +295,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    *
    * <p>The returned iterable is modifiable, but modifications do not affect the input array.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@link Stream#of(T...)}.
+   * <p><b>{@code Stream} equivalent:</b> {@link java.util.stream.Stream#of(Object[])
+   * Stream.of(T...)}.
    *
    * @deprecated Use {@link #from(E[])} instead (but note the differences in mutability). This
    *     method will be removed in Guava release 21.0.
@@ -312,7 +311,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
   /**
    * Returns a fluent iterable containing the specified elements in order.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@link Stream#of(T...)}.
+   * <p><b>{@code Stream} equivalent:</b> {@link java.util.stream.Stream#of(Object[])
+   * Stream.of(T...)}.
    *
    * @since 20.0
    */
@@ -336,7 +336,7 @@ public abstract class FluentIterable<E> implements Iterable<E> {
   /**
    * Returns the number of elements in this fluent iterable.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@code stream.count()}.
+   * <p><b>{@code Stream} equivalent:</b> {@link Stream#count}.
    */
   public final int size() {
     return Iterables.size(getDelegate());
@@ -366,9 +366,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * elements.
    *
    * <p><b>{@code Stream} equivalent:</b> if the source iterable has only a single element {@code
-   * element}, use {@code Stream.generate(() -> element)}. Otherwise, if the source iterable has a
-   * {@code stream} method (for example, if it is a {@link Collection}), use
-   * {@code Stream.generate(iterable::stream).flatMap(s -> s)}.
+   * e}, use {@code Stream.generate(() -> e)}. Otherwise, collect your stream into a collection and
+   * use {@code Stream.generate(() -> collection).flatMap(Collection::stream)}.
    */
   public final FluentIterable<E> cycle() {
     return from(Iterables.cycle(getDelegate()));
@@ -604,8 +603,7 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * Returns an {@code ImmutableList} containing all of the elements from this fluent iterable in
    * proper sequence.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@code ImmutableList.copyOf(stream.iterator())}, or after
-   * the next release of Guava, pass {@link ImmutableList#toImmutableList} to {@code
+   * <p><b>{@code Stream} equivalent:</b> pass {@link ImmutableList#toImmutableList} to {@code
    * stream.collect()}.
    *
    * @since 14.0 (since 12.0 as {@code toImmutableList()}).
@@ -619,9 +617,7 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * FluentIterable} in the order specified by {@code comparator}. To produce an {@code
    * ImmutableList} sorted by its natural ordering, use {@code toSortedList(Ordering.natural())}.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@code
-   * ImmutableList.copyOf(stream.sorted(comparator).iterator())}, or after the next release of
-   * Guava, pass {@link ImmutableList#toImmutableList} to {@code
+   * <p><b>{@code Stream} equivalent:</b> pass {@link ImmutableList#toImmutableList} to {@code
    * stream.sorted(comparator).collect()}.
    *
    * @param comparator the function by which to sort list elements
@@ -636,8 +632,7 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * Returns an {@code ImmutableSet} containing all of the elements from this fluent iterable with
    * duplicates removed.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@code ImmutableSet.copyOf(stream.iterator())}, or after
-   * the next release of Guava, pass {@link ImmutableSet#toImmutableSet} to {@code
+   * <p><b>{@code Stream} equivalent:</b> pass {@link ImmutableSet#toImmutableSet} to {@code
    * stream.collect()}.
    *
    * @since 14.0 (since 12.0 as {@code toImmutableSet()}).
@@ -652,8 +647,7 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * {@code comparator.compare(x, y) == 0}) removed. To produce an {@code ImmutableSortedSet} sorted
    * by its natural ordering, use {@code toSortedSet(Ordering.natural())}.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@code ImmutableSortedSet.copyOf(comparator,
-   * stream.iterator())}, or after the next release of Guava, pass {@link
+   * <p><b>{@code Stream} equivalent:</b> pass {@link
    * ImmutableSortedSet#toImmutableSortedSet} to {@code stream.collect()}.
    *
    * @param comparator the function by which to sort set elements
@@ -667,8 +661,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
   /**
    * Returns an {@code ImmutableMultiset} containing all of the elements from this fluent iterable.
    *
-   * <p><b>{@code Stream} equivalent:</b> {@code ImmutableMultiset.copyOf(stream.iterator())}, or
-   * after the next release of Guava, pass {@link ImmutableMultiset#toImmutableMultiset} to {@code
+   * <p><b>{@code Stream} equivalent:</b> pass {@link ImmutableMultiset#toImmutableMultiset} to
+   * {@code
    * stream.collect()}.
    *
    * @since 19.0
@@ -686,10 +680,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * {@code valueFunction} will be applied to more than one instance of that key and, if it is,
    * which result will be mapped to that key in the returned map.
    *
-   * <p><b>{@code Stream} equivalent:</b> after the next release of Guava, use {@code
-   * stream.collect(ImmutableMap.toImmutableMap(k -> k, valueFunction))}. Before then you can use
-   * {@code ImmutableMap.copyOf(stream.collect(Collectors.toMap(k -> k, valueFunction)))}, but be
-   * aware that this may not preserve the order of entries.
+   * <p><b>{@code Stream} equivalent:</b> {@code
+   * stream.collect(ImmutableMap.toImmutableMap(k -> k, valueFunction))}.
    *
    * @throws NullPointerException if any element of this iterable is {@code null}, or if {@code
    *     valueFunction} produces {@code null} for any key
@@ -744,10 +736,8 @@ public abstract class FluentIterable<E> implements Iterable<E> {
    * <p>If your index may associate multiple values with each key, use {@link #index(Function)
    * index}.
    *
-   * <p><b>{@code Stream} equivalent:</b> after the next release of Guava, use {@code
-   * stream.collect(ImmutableMap.toImmutableMap(keyFunction, v -> v))}. Before then you can use
-   * {@code ImmutableMap.copyOf(stream.collect(Collectors.toMap(keyFunction, v -> v)))}, but be
-   * aware that this may not preserve the order of entries.
+   * <p><b>{@code Stream} equivalent:</b> {@code
+   * stream.collect(ImmutableMap.toImmutableMap(keyFunction, v -> v))}.
    *
    * @param keyFunction the function used to produce the key for each value
    * @return a map mapping the result of evaluating the function {@code keyFunction} on each value
@@ -834,6 +824,20 @@ public abstract class FluentIterable<E> implements Iterable<E> {
   // TODO(kevinb): add @Nullable?
   public final E get(int position) {
     return Iterables.get(getDelegate(), position);
+  }
+
+  /**
+   * Returns a stream of this fluent iterable's contents (similar to calling {@link
+   * Collection#stream} on a collecion).
+   *
+   * <p><b>Note:</b> the earlier in the chain you can switch to {@code Stream} usage (ideally not
+   * going through {@code FluentIterable} at all), the more performant and idiomatic your code will
+   * be. This method is a transitional aid, to be used only when really necessary.
+   *
+   * @since 21.0
+   */
+  public final Stream<E> stream() {
+    return Streams.stream(getDelegate());
   }
 
   /**

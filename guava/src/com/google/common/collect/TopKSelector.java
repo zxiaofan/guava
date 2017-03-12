@@ -107,7 +107,7 @@ import javax.annotation.Nullable;
 
   /**
    * The largest of the lowest k elements we've seen so far relative to this comparator. If
-   * bufferSize >= k, then we can ignore any elements greater than this value.
+   * bufferSize ≥ k, then we can ignore any elements greater than this value.
    */
   private T threshold;
 
@@ -192,8 +192,8 @@ import javax.annotation.Nullable;
   /**
    * Partitions the contents of buffer in the range [left, right] around the pivot element
    * previously stored in buffer[pivotValue]. Returns the new index of the pivot element,
-   * pivotNewIndex, so that everything in [left, pivotNewIndex] is <= pivotValue and everything in
-   * (pivotNewIndex, right] is > pivotValue.
+   * pivotNewIndex, so that everything in [left, pivotNewIndex] is ≤ pivotValue and everything in
+   * (pivotNewIndex, right] is greater than pivotValue.
    */
   private int partition(int left, int right, int pivotIndex) {
     T pivotValue = buffer[pivotIndex];
@@ -215,6 +215,13 @@ import javax.annotation.Nullable;
     T tmp = buffer[i];
     buffer[i] = buffer[j];
     buffer[j] = tmp;
+  }
+
+  TopKSelector<T> combine(TopKSelector<T> other) {
+    for (int i = 0; i < other.bufferSize; i++) {
+      this.offer(other.buffer[i]);
+    }
+    return this;
   }
 
   /**
